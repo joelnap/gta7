@@ -1,54 +1,53 @@
-import Phaser from 'phaser';
+name: Deploy to GitHub Pages
 
-class PlaceholderScene extends Phaser.Scene {
-  constructor() {
-    super('PlaceholderScene');
-  }
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
-  preload() {
-    // Assets worden hier later geladen zodra het game design bekend is.
-  }
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-  create() {
-    const { width, height } = this.scale;
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
-    this.add
-      .text(width / 2, height / 2 - 20, 'GTA7', {
-        fontFamily: 'monospace',
-        fontSize: '48px',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5);
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    this.add
-      .text(width / 2, height / 2 + 30, 'Build & deploy pipeline werkt.\nGame komt eraan...', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#aaaaaa',
-        align: 'center',
-      })
-      .setOrigin(0.5);
-  }
-}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
 
-const config = {
-  type: Phaser.AUTO,
-  parent: 'game-container',
-  width: 800,
-  height: 600,
-  backgroundColor: '#222222',
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 0 },
-      debug: false,
-    },
-  },
-  scene: [PlaceholderScene],
-};
+      - name: Install dependencies
+        run: npm ci
 
-new Phaser.Game(config);
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
